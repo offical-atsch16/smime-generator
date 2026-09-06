@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S/MIME Cert Generator – Web-based S/MIME Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between font-sans antialiased">
+
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur">
+        <div class="max-w-4xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
+                <span class="font-bold text-lg text-slate-100">S/MIME Generator</span>
+            </div>
+            <span class="text-xs font-mono bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                100% Client-Side Privacy
+            </span>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto w-full px-6 py-10 flex-grow">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl">
+            <div class="mb-8">
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-white">S/MIME Zertifikat erstellen</h1>
+                <p class="text-slate-400 text-sm mt-2 leading-relaxed">
+                    Generiere ein lokales Root-CA und ein S/MIME-Zertifikat direkt in deinem Browser. Alle Schlüssel werden lokal erzeugt und verlassen dein Gerät zu keinem Zeitpunkt.
+                </p>
+            </div>
+
+            <form id="certForm" onsubmit="generateCertificates(event)" class="space-y-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Vollständiger Name</label>
+                        <input type="text" id="commonName" value="Max Mustermann" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">E-Mail Adresse</label>
+                        <input type="email" id="email" value="max@beispiel.de" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Organisation / Firma</label>
+                        <input type="text" id="organization" value="Mein Unternehmen" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Ländercode (z.B. DE, AT, CH)</label>
+                        <input type="text" id="country" value="DE" maxlength="2" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Gültigkeit (Tage)</label>
+                        <input type="number" id="days" value="730" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">.p12 Export-Passwort</label>
+                        <input type="password" id="p12password" value="geheim123" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <button type="submit" id="btnGenerate" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg shadow-emerald-900/20 active:scale-[0.99]">
+                    Zertifikate lokal generieren
+                </button>
+            </form>
+
+            <div id="status" class="hidden mt-8 text-center">
+                <div class="inline-flex items-center space-x-3 bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl">
+                    <svg class="animate-spin h-5 w-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-sm font-medium text-slate-300">Generiere RSA-Schlüsselpaar und Zertifikate...</span>
+                </div>
+            </div>
+
+            <div id="output" class="hidden mt-10 border-t border-slate-800 pt-8 space-y-6">
+                <h2 class="text-xl font-bold text-white">Generierte Zertifikate</h2>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+                        <div>
+                            <span class="text-xs font-mono text-emerald-400 uppercase tracking-wider">Schritt 1</span>
+                            <h3 class="font-bold text-slate-100 text-base mt-1">Root-CA Zertifikat</h3>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Importiere <code class="text-slate-300 bg-slate-900 px-1 py-0.5 rounded">ca.crt</code> einmalig in dein E-Mail-Programm / Betriebssystem als vertrauenswürdige CA.
+                            </p>
+                        </div>
+                        <button onclick="downloadFile('ca.crt', generatedCA)" class="mt-4 w-full bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-emerald-400 border border-emerald-500/30 py-2.5 rounded-lg transition flex items-center justify-center space-x-2">
+                            <span>ca.crt herunterladen</span>
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+                        <div>
+                            <span class="text-xs font-mono text-emerald-400 uppercase tracking-wider">Schritt 2</span>
+                            <h3 class="font-bold text-slate-100 text-base mt-1">S/MIME Bundle (.p12)</h3>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Importiere <code class="text-slate-300 bg-slate-900 px-1 py-0.5 rounded">smime.p12</code> in deinen Mail-Client mit deinem gewählten Passwort.
+                            </p>
+                        </div>
+                        <button onclick="downloadFile('smime.p12', generatedP12, true)" class="mt-4 w-full bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white py-2.5 rounded-lg transition shadow-md flex items-center justify-center space-x-2">
+                            <span>smime.p12 herunterladen</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="border-t border-slate-800/80 bg-slate-900/30 py-6 text-center">
+        <p class="text-xs text-slate-400 flex items-center justify-center space-x-1">
+            <span>❤️ for OpenSource made by</span>
+            <a href="https://github.com/offical-atsch16" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:underline font-medium transition">
+                offical-atsch16
+            </a>
+        </p>
+    </footer>
+
+    <script>
+        let generatedCA = "";
+        let generatedP12 = null;
+
+        function downloadFile(filename, content, isBinary = false) {
+            const element = document.createElement('a');
+            if (isBinary) {
+                const blob = new Blob([content], { type: 'application/x-pkcs12' });
+                element.href = URL.createObjectURL(blob);
+            } else {
+                element.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
+            }
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+        async function generateCertificates(event) {
+            event.preventDefault();
+            
+            document.getElementById('status').classList.remove('hidden');
+            document.getElementById('output').classList.add('hidden');
+
+            setTimeout(() => {
+                try {
+                    const cn = document.getElementById('commonName').value;
+                    const email = document.getElementById('email').value;
+                    const org = document.getElementById('organization').value;
+                    const country = document.getElementById('country').value;
+                    const days = parseInt(document.getElementById('days').value);
+                    const password = document.getElementById('p12password').value;
+
+                    // 1. Root CA Keypair & Certificate
+                    const caKeypair = KEYUTIL.generateKeypair("RSA", 2048);
+                    const caCert = new KJUR.asn1.x509.Certificate({
+                        version: 3,
+                        serial: {int: 1},
+                        issuer: {str: `/C=${country}/O=${org} Local CA/CN=${org} Root CA`},
+                        subject: {str: `/C=${country}/O=${org} Local CA/CN=${org} Root CA`},
+                        notbefore: KJUR.asn1.x509.OID.time2date(new Date()),
+                        notafter: KJUR.asn1.x509.OID.time2date(new Date(Date.now() + 10 * 365 * 86400 * 1000)),
+                        ext: [
+                            {extname: "basicConstraints", cA: true, critical: true},
+                            {extname: "keyUsage", critical: true, names: ["keyCertSign", "cRLSign"]}
+                        ],
+                        sigalg: "SHA256withRSA",
+                        cakey: caKeypair.prvKeyObj
+                    });
+
+                    generatedCA = caCert.getPEM();
+
+                    // 2. User S/MIME Keypair & Certificate
+                    const userKeypair = KEYUTIL.generateKeypair("RSA", 2048);
+                    const userCert = new KJUR.asn1.x509.Certificate({
+                        version: 3,
+                        serial: {int: 2},
+                        issuer: {str: `/C=${country}/O=${org} Local CA/CN=${org} Root CA`},
+                        subject: {str: `/C=${country}/O=${org}/CN=${cn}/emailAddress=${email}`},
+                        notbefore: KJUR.asn1.x509.OID.time2date(new Date()),
+                        notafter: KJUR.asn1.x509.OID.time2date(new Date(Date.now() + days * 86400 * 1000)),
+                        ext: [
+                            {extname: "basicConstraints", cA: false},
+                            {extname: "keyUsage", names: ["digitalSignature", "nonRepudiation", "keyEncipherment"]},
+                            {extname: "extKeyUsage", array: ["emailProtection"]},
+                            {extname: "subjectAltName", array: [{rfc822: email}]}
+                        ],
+                        sigalg: "SHA256withRSA",
+                        cakey: caKeypair.prvKeyObj
+                    });
+
+                    // 3. Generate PKCS#12 (.p12) Hex & Binary
+                    const p12Hex = jsx509.getPKCS12HexForCertAndKey({
+                        certreq: userCert.getPEM(),
+                        keyreq: KEYUTIL.getPEM(userKeypair.prvKeyObj, "PKCS8PRV"),
+                        pass: password,
+                        caCert: generatedCA
+                    });
+
+                    const p12Bytes = new Uint8Array(p12Hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                    generatedP12 = p12Bytes;
+
+                    document.getElementById('status').classList.add('hidden');
+                    document.getElementById('output').classList.remove('hidden');
+
+                } catch (err) {
+                    alert("Fehler bei der Zertifikatsgenerierung: " + err.message);
+                    document.getElementById('status').classList.add('hidden');
+                }
+            }, 100);
+        }
+    </script>
+</body>
+</html>
