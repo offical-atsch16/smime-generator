@@ -1,7 +1,7 @@
 # 🔐 CryptoStudio v2.0 – S/MIME & Secret Generator
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen.svg)](https://offical-atsch16.github.io)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen.svg)](https://offical-atsch16.github.io/smime-generator/)
 [![Client-Side Privacy](https://img.shields.io/badge/Privacy-100%25%20Client--Side-blue.svg)](#-datenschutz--sicherheit)
 
 **CryptoStudio** ist eine moderne, browserbasierte Kryptographie-Suite. Sie ermöglicht die Erstellung von **S/MIME-E-Mail-Zertifikaten**, **SSH-Schlüsselpaaren**, **OpenPGP/GPG-Schlüsseln**, **sicheren Passwörtern/Secrets** sowie die Berechnung von **Hashes & Encodings** – komplett lokal im Browser, ohne Server und ohne Datenübertragung.
@@ -32,7 +32,7 @@
 
 Du kannst CryptoStudio direkt online nutzen:
 
-👉 **[CryptoStudio Live-Version auf GitHub Pages öffnen](https://offical-atsch16.github.io)** *(Link nach dem Deployment anpassen)*
+👉 **[CryptoStudio Live-Version auf GitHub Pages öffnen](https://offical-atsch16.github.io/smime-generator/)** *(Link nach dem Deployment anpassen)*
 
 ---
 
