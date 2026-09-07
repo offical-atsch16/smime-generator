@@ -1,135 +1,600 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S/MIME Cert Generator – Web-based S/MIME Tool</title>
+    <title>CryptoStudio – S/MIME & Secret Generator (100% Lokal)</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Crypto Libraries: node-forge & openpgp -->
+    <script src="https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/openpgp@5.11.0/dist/openpgp.min.js"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between font-sans antialiased">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-slate-950">
 
-    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur">
-        <div class="max-w-4xl mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-2">
-                <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                </svg>
-                <span class="font-bold text-lg text-slate-100">S/MIME Generator</span>
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform translate-y-[-100px] opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-emerald-600 text-white font-medium px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2 border border-emerald-400/30">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            <span id="toastMsg">In die Zwischenablage kopiert!</span>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-brand-500/10 border border-brand-500/20 rounded-xl text-brand-500">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-xl text-white tracking-tight flex items-center gap-2">
+                        CryptoStudio <span class="text-xs font-mono font-normal px-2 py-0.5 rounded bg-brand-500/10 text-brand-500 border border-brand-500/20">v2.0</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">S/MIME Zertifikate, SSH Keys, PGP & Secure Secret Generator</p>
+                </div>
             </div>
-            <span class="text-xs font-mono bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                100% Client-Side Privacy
-            </span>
+
+            <div class="flex items-center space-x-2 bg-slate-900/90 border border-emerald-500/30 px-3.5 py-1.5 rounded-full text-xs font-medium text-emerald-400 shadow-inner">
+                <span class="relative flex h-2.5 w-2.5">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span>100% Lokale Generierung (Zero Server Storage)</span>
+            </div>
         </div>
     </header>
 
-    <main class="max-w-4xl mx-auto w-full px-6 py-10 flex-grow">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl">
-            <div class="mb-8">
-                <h1 class="text-2xl sm:text-3xl font-extrabold text-white">S/MIME Zertifikat erstellen</h1>
-                <p class="text-slate-400 text-sm mt-2 leading-relaxed">
-                    Generiere ein lokales Root-CA und ein S/MIME-Zertifikat direkt in deinem Browser. Alle Schlüssel werden lokal erzeugt und verlassen dein Gerät zu keinem Zeitpunkt.
-                </p>
-            </div>
+    <!-- Main Container -->
+    <main class="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex-grow">
 
-            <form id="certForm" onsubmit="generateCertificates(event)" class="space-y-5">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Vollständiger Name</label>
-                        <input type="text" id="commonName" value="Max Mustermann" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+        <!-- Privacy Assurance Banner -->
+        <div class="mb-8 p-4 bg-slate-900/80 border border-emerald-500/20 rounded-2xl flex items-start space-x-3.5 text-xs sm:text-sm text-slate-300 shadow-lg">
+            <svg class="w-6 h-6 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+            </svg>
+            <div class="leading-relaxed">
+                <strong class="text-white font-semibold">Garantierter Schutz deiner Daten:</strong>
+                Alle Schlüssel, Zertifikate, Passwörter und Hashes werden ausschließlich lokal in deinem Webbrowser erzeugt. Es werden zu keinem Zeitpunkt Daten an einen Server übermittelt oder gespeichert. Du kannst dieses Tool auch vollständig offline verwenden.
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="flex flex-wrap gap-2 border-b border-slate-800 pb-3 mb-8">
+            <button onclick="switchTab('smime')" id="tab-btn-smime" class="tab-btn active px-4 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center space-x-2 bg-brand-600 text-white shadow-lg shadow-brand-900/40">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                <span>S/MIME Zertifikate</span>
+            </button>
+            <button onclick="switchTab('ssh')" id="tab-btn-ssh" class="tab-btn px-4 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center space-x-2 bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                <span>SSH Key Pair</span>
+            </button>
+            <button onclick="switchTab('pgp')" id="tab-btn-pgp" class="tab-btn px-4 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center space-x-2 bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                <span>OpenPGP Key Pair</span>
+            </button>
+            <button onclick="switchTab('secrets')" id="tab-btn-secrets" class="tab-btn px-4 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center space-x-2 bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 0121 9z"></path></svg>
+                <span>Passwörter & Secrets</span>
+            </button>
+            <button onclick="switchTab('hashes')" id="tab-btn-hashes" class="tab-btn px-4 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center space-x-2 bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"></path></svg>
+                <span>Hashes & Encoding</span>
+            </button>
+        </nav>
+
+        <!-- TAB 1: S/MIME Zertifikate -->
+        <div id="tab-smime" class="tab-content">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl">
+                <div class="mb-8">
+                    <h2 class="text-2xl font-extrabold text-white flex items-center gap-2">
+                        <span>S/MIME Zertifikatspaket erstellen</span>
+                    </h2>
+                    <p class="text-slate-400 text-sm mt-2 leading-relaxed">
+                        Erstelle ein vollwertiges E-Mail-Verschlüsselungs- und Signatur-Zertifikat inklusive eigener Root-CA und PKCS#12 Export (.p12).
+                    </p>
+                </div>
+
+                <form id="smimeForm" onsubmit="generateSmimeCertificates(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Vollständiger Name (Common Name)</label>
+                            <input type="text" id="smimeCommonName" value="Max Mustermann" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">E-Mail Adresse</label>
+                            <input type="email" id="smimeEmail" value="max@beispiel.de" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Organisation / Firma</label>
+                            <input type="text" id="smimeOrg" value="Mein Unternehmen" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Ländercode (z.B. DE, AT, CH)</label>
+                            <input type="text" id="smimeCountry" value="DE" maxlength="2" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Gültigkeit in Tagen</label>
+                            <input type="number" id="smimeDays" value="730" min="30" max="3650" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Schlüssellänge</label>
+                            <select id="smimeKeyBits" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                                <option value="2048" selected>RSA 2048 Bit (Standard & Schnell)</option>
+                                <option value="4096">RSA 4096 Bit (Hohe Sicherheit)</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">.p12 Export-Passwort</label>
+                            <input type="password" id="smimePassword" value="geheim123" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                            <p class="text-xs text-slate-500 mt-1">Dieses Passwort benötigst du beim Import der .p12-Datei in Outlook, Thunderbird oder Apple Mail.</p>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">E-Mail Adresse</label>
-                        <input type="email" id="email" value="max@beispiel.de" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Organisation / Firma</label>
-                        <input type="text" id="organization" value="Mein Unternehmen" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Ländercode (z.B. DE, AT, CH)</label>
-                        <input type="text" id="country" value="DE" maxlength="2" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Gültigkeit (Tage)</label>
-                        <input type="number" id="days" value="730" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">.p12 Export-Passwort</label>
-                        <input type="password" id="p12password" value="geheim123" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+
+                    <button type="submit" id="btnSmimeGenerate" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition duration-200 shadow-lg shadow-emerald-900/30 flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        <span>S/MIME Zertifikate lokal generieren</span>
+                    </button>
+                </form>
+
+                <!-- Status Spinner -->
+                <div id="smimeStatus" class="hidden mt-8 text-center">
+                    <div class="inline-flex items-center space-x-3 bg-slate-950 border border-slate-800 px-6 py-4 rounded-xl shadow-lg">
+                        <svg class="animate-spin h-5 w-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-sm font-medium text-slate-300">Generiere RSA-Schlüsselpaar und S/MIME Zertifikate...</span>
                     </div>
                 </div>
 
-                <button type="submit" id="btnGenerate" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg shadow-emerald-900/20 active:scale-[0.99]">
-                    Zertifikate lokal generieren
-                </button>
-            </form>
+                <!-- Outputs -->
+                <div id="smimeOutput" class="hidden mt-10 border-t border-slate-800 pt-8 space-y-6">
+                    <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                        <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>Generierte Zertifikate & Schlüssel</span>
+                    </h3>
 
-            <div id="status" class="hidden mt-8 text-center">
-                <div class="inline-flex items-center space-x-3 bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl">
-                    <svg class="animate-spin h-5 w-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span class="text-sm font-medium text-slate-300">Generiere RSA-Schlüsselpaar und Zertifikate...</span>
-                </div>
-            </div>
-
-            <div id="output" class="hidden mt-10 border-t border-slate-800 pt-8 space-y-6">
-                <h2 class="text-xl font-bold text-white">Generierte Zertifikate</h2>
-                
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
-                        <div>
-                            <span class="text-xs font-mono text-emerald-400 uppercase tracking-wider">Schritt 1</span>
-                            <h3 class="font-bold text-slate-100 text-base mt-1">Root-CA Zertifikat</h3>
-                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
-                                Importiere <code class="text-slate-300 bg-slate-900 px-1 py-0.5 rounded">ca.crt</code> einmalig in dein E-Mail-Programm / Betriebssystem als vertrauenswürdige CA.
-                            </p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Step 1: Root CA -->
+                        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-4">
+                            <div>
+                                <span class="text-xs font-mono text-emerald-400 uppercase tracking-wider">Schritt 1</span>
+                                <h4 class="font-bold text-white text-base mt-1">Root-CA Zertifikat (ca.crt)</h4>
+                                <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                    In dein Betriebssystem oder Mailprogramm einmalig als vertrauenswürdige Stammzertifizierungsstelle importieren.
+                                </p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="downloadTextFile('ca.crt', generatedSmime.caPem)" class="flex-1 bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-emerald-400 border border-emerald-500/30 py-2.5 rounded-xl transition flex items-center justify-center space-x-1">
+                                    <span>ca.crt Herunterladen</span>
+                                </button>
+                                <button onclick="copyToClipboard(generatedSmime.caPem)" class="px-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 hover:border-slate-700 text-xs font-medium">
+                                    Kopieren
+                                </button>
+                            </div>
                         </div>
-                        <button onclick="downloadFile('ca.crt', generatedCA)" class="mt-4 w-full bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-emerald-400 border border-emerald-500/30 py-2.5 rounded-lg transition flex items-center justify-center space-x-2">
-                            <span>ca.crt herunterladen</span>
-                        </button>
-                    </div>
 
-                    <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
-                        <div>
-                            <span class="text-xs font-mono text-emerald-400 uppercase tracking-wider">Schritt 2</span>
-                            <h3 class="font-bold text-slate-100 text-base mt-1">S/MIME Bundle (.p12)</h3>
-                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
-                                Importiere <code class="text-slate-300 bg-slate-900 px-1 py-0.5 rounded">smime.p12</code> in deinen Mail-Client mit deinem gewählten Passwort.
-                            </p>
+                        <!-- Step 2: S/MIME PKCS#12 Bundle -->
+                        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-4">
+                            <div>
+                                <span class="text-xs font-mono text-emerald-400 uppercase tracking-wider">Schritt 2</span>
+                                <h4 class="font-bold text-white text-base mt-1">S/MIME Bundle (smime.p12)</h4>
+                                <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                    Enthält deinen privaten Schlüssel & Zertifikat. Direkt in Outlook, Thunderbird oder Apple Mail importieren.
+                                </p>
+                            </div>
+                            <button onclick="downloadBinaryFile('smime.p12', generatedSmime.p12Bytes, 'application/x-pkcs12')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white py-2.5 rounded-xl transition shadow-md flex items-center justify-center space-x-1">
+                                <span>smime.p12 Herunterladen</span>
+                            </button>
                         </div>
-                        <button onclick="downloadFile('smime.p12', generatedP12, true)" class="mt-4 w-full bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white py-2.5 rounded-lg transition shadow-md flex items-center justify-center space-x-2">
-                            <span>smime.p12 herunterladen</span>
-                        </button>
+
+                        <!-- Step 3: User Cert PEM -->
+                        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-4">
+                            <div>
+                                <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Zusatz</span>
+                                <h4 class="font-bold text-white text-base mt-1">S/MIME Zertifikat PEM (smime.crt)</h4>
+                                <p class="text-xs text-slate-400 mt-1">Öffentliches Nutzerzertifikat im PEM-Format.</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="downloadTextFile('smime.crt', generatedSmime.userPem)" class="flex-1 bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-slate-300 border border-slate-800 py-2.5 rounded-xl transition flex items-center justify-center">
+                                    <span>smime.crt Herunterladen</span>
+                                </button>
+                                <button onclick="copyToClipboard(generatedSmime.userPem)" class="px-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 text-xs">
+                                    Kopieren
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Step 4: User Private Key PEM -->
+                        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-4">
+                            <div>
+                                <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Zusatz</span>
+                                <h4 class="font-bold text-white text-base mt-1">Privater Schlüssel PEM (smime.key)</h4>
+                                <p class="text-xs text-slate-400 mt-1">Privater RSA-Schlüssel im PEM-Format.</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="downloadTextFile('smime.key', generatedSmime.userKeyPem)" class="flex-1 bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-slate-300 border border-slate-800 py-2.5 rounded-xl transition flex items-center justify-center">
+                                    <span>smime.key Herunterladen</span>
+                                </button>
+                                <button onclick="copyToClipboard(generatedSmime.userKeyPem)" class="px-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 text-xs">
+                                    Kopieren
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- TAB 2: SSH Key Pair -->
+        <div id="tab-ssh" class="tab-content hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl">
+                <div class="mb-8">
+                    <h2 class="text-2xl font-extrabold text-white">SSH Schlüsselpaar generieren</h2>
+                    <p class="text-slate-400 text-sm mt-2">
+                        Generiere ein SSH-Schlüsselpaar für deinen Serverzugriff (OpenSSH-Format) direkt im Browser.
+                    </p>
+                </div>
+
+                <form id="sshForm" onsubmit="generateSshKeyPair(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Schlüsseltyp & Länge</label>
+                            <select id="sshKeyType" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                                <option value="rsa2048">RSA 2048 Bit</option>
+                                <option value="rsa4096" selected>RSA 4096 Bit (Empfohlen)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Kommentar / E-Mail</label>
+                            <input type="text" id="sshComment" value="user@server.local" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btnSshGenerate" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition duration-200 shadow-lg shadow-emerald-900/30 flex items-center justify-center space-x-2">
+                        <span>SSH Schlüsselpaar lokal generieren</span>
+                    </button>
+                </form>
+
+                <div id="sshStatus" class="hidden mt-8 text-center">
+                    <div class="inline-flex items-center space-x-3 bg-slate-950 border border-slate-800 px-6 py-4 rounded-xl shadow-lg">
+                        <svg class="animate-spin h-5 w-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span class="text-sm font-medium text-slate-300">Generiere SSH-Schlüsselpaar...</span>
+                    </div>
+                </div>
+
+                <div id="sshOutput" class="hidden mt-10 border-t border-slate-800 pt-8 space-y-6">
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-bold text-white">Öffentlicher SSH Schlüssel (id_rsa.pub)</label>
+                                <div class="space-x-2">
+                                    <button onclick="copyToClipboard(generatedSsh.publicKey)" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg transition">Kopieren</button>
+                                    <button onclick="downloadTextFile('id_rsa.pub', generatedSsh.publicKey)" class="px-3 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs font-medium rounded-lg transition">Herunterladen</button>
+                                </div>
+                            </div>
+                            <textarea id="sshPubKeyArea" readonly class="w-full h-24 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-emerald-400 focus:outline-none resize-none"></textarea>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-bold text-white">Privater SSH Schlüssel (id_rsa)</label>
+                                <div class="space-x-2">
+                                    <button onclick="copyToClipboard(generatedSsh.privateKey)" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg transition">Kopieren</button>
+                                    <button onclick="downloadTextFile('id_rsa', generatedSsh.privateKey)" class="px-3 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs font-medium rounded-lg transition">Herunterladen</button>
+                                </div>
+                            </div>
+                            <textarea id="sshPrvKeyArea" readonly class="w-full h-40 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none resize-none"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: OpenPGP Key Pair -->
+        <div id="tab-pgp" class="tab-content hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl">
+                <div class="mb-8">
+                    <h2 class="text-2xl font-extrabold text-white">OpenPGP / GPG Schlüsselpaar generieren</h2>
+                    <p class="text-slate-400 text-sm mt-2">
+                        Erstelle OpenPGP-Schlüsselpaare für GnuPG, Mailvelope und verschlüsselte Kommunikation.
+                    </p>
+                </div>
+
+                <form id="pgpForm" onsubmit="generatePgpKeyPair(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Name</label>
+                            <input type="text" id="pgpName" value="Max Mustermann" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">E-Mail Adresse</label>
+                            <input type="email" id="pgpEmail" value="max@beispiel.de" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Schlüsseltyp</label>
+                            <select id="pgpKeyType" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                                <option value="rsa2048">RSA 2048 Bit</option>
+                                <option value="rsa4096" selected>RSA 4096 Bit</option>
+                                <option value="ecc">ECC Curve25519 (Schnell & Modern)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Passphrase (Optional)</label>
+                            <input type="password" id="pgpPassphrase" placeholder="Optionaler Schutz" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btnPgpGenerate" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition duration-200 shadow-lg shadow-emerald-900/30 flex items-center justify-center space-x-2">
+                        <span>OpenPGP Schlüsselpaar lokal generieren</span>
+                    </button>
+                </form>
+
+                <div id="pgpStatus" class="hidden mt-8 text-center">
+                    <div class="inline-flex items-center space-x-3 bg-slate-950 border border-slate-800 px-6 py-4 rounded-xl shadow-lg">
+                        <svg class="animate-spin h-5 w-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span class="text-sm font-medium text-slate-300">Generiere PGP-Schlüsselpaar...</span>
+                    </div>
+                </div>
+
+                <div id="pgpOutput" class="hidden mt-10 border-t border-slate-800 pt-8 space-y-6">
+                    <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-wrap justify-between items-center text-xs gap-2">
+                        <div>
+                            <span class="text-slate-400">Fingerabdruck: </span>
+                            <span id="pgpFingerprint" class="font-mono text-emerald-400 font-bold uppercase"></span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400">Key ID: </span>
+                            <span id="pgpKeyId" class="font-mono text-white font-bold uppercase"></span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-bold text-white">Öffentlicher PGP Schlüssel (public.asc)</label>
+                                <div class="space-x-2">
+                                    <button onclick="copyToClipboard(generatedPgp.publicKey)" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg transition">Kopieren</button>
+                                    <button onclick="downloadTextFile('public.asc', generatedPgp.publicKey)" class="px-3 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs font-medium rounded-lg transition">Herunterladen</button>
+                                </div>
+                            </div>
+                            <textarea id="pgpPubKeyArea" readonly class="w-full h-36 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-emerald-400 focus:outline-none resize-none"></textarea>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-bold text-white">Privater PGP Schlüssel (private.asc)</label>
+                                <div class="space-x-2">
+                                    <button onclick="copyToClipboard(generatedPgp.privateKey)" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg transition">Kopieren</button>
+                                    <button onclick="downloadTextFile('private.asc', generatedPgp.privateKey)" class="px-3 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs font-medium rounded-lg transition">Herunterladen</button>
+                                </div>
+                            </div>
+                            <textarea id="pgpPrvKeyArea" readonly class="w-full h-36 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none resize-none"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: Passwörter & Secrets -->
+        <div id="tab-secrets" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Tool 1: Password Generator -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-white mb-2">Sicherer Passwort Generator</h3>
+                        <p class="text-slate-400 text-xs mb-6">Generiere kryptographisch sichere Zufallspasswörter via Web Crypto API.</p>
+
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between text-xs font-medium mb-1.5">
+                                    <span class="text-slate-300">Passwortlänge</span>
+                                    <span id="pwdLengthVal" class="text-emerald-400 font-bold">20 Zeichen</span>
+                                </div>
+                                <input type="range" id="pwdLength" min="8" max="64" value="20" oninput="document.getElementById('pwdLengthVal').innerText = this.value + ' Zeichen'; generateSecurePassword();" class="w-full accent-emerald-500">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <label class="flex items-center space-x-2 bg-slate-950 p-2.5 rounded-lg border border-slate-800 cursor-pointer">
+                                    <input type="checkbox" id="pwdUpper" checked onchange="generateSecurePassword()" class="rounded accent-emerald-500">
+                                    <span>Großbuchstaben (A-Z)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 bg-slate-950 p-2.5 rounded-lg border border-slate-800 cursor-pointer">
+                                    <input type="checkbox" id="pwdLower" checked onchange="generateSecurePassword()" class="rounded accent-emerald-500">
+                                    <span>Kleinbuchstaben (a-z)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 bg-slate-950 p-2.5 rounded-lg border border-slate-800 cursor-pointer">
+                                    <input type="checkbox" id="pwdDigits" checked onchange="generateSecurePassword()" class="rounded accent-emerald-500">
+                                    <span>Zahlen (0-9)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 bg-slate-950 p-2.5 rounded-lg border border-slate-800 cursor-pointer">
+                                    <input type="checkbox" id="pwdSymbols" checked onchange="generateSecurePassword()" class="rounded accent-emerald-500">
+                                    <span>Sonderzeichen (!@#$)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <div class="relative">
+                            <input type="text" id="pwdOutput" readonly class="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 pl-4 pr-24 font-mono text-emerald-400 font-bold text-sm">
+                            <button onclick="copyToClipboard(document.getElementById('pwdOutput').value)" class="absolute right-2 top-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition">Kopieren</button>
+                        </div>
+                        <button onclick="generateSecurePassword()" class="w-full mt-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition">Neues Passwort generieren</button>
+                    </div>
+                </div>
+
+                <!-- Tool 2: API Keys, UUIDs & Hex Tokens -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-white mb-2">API Keys, UUID v4 & Secrets</h3>
+                        <p class="text-slate-400 text-xs mb-6">Generiere zufällige UUIDs, Hex & Base64 Geheimnisse.</p>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">UUID v4 Token</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="uuidOutput" readonly class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 font-mono text-xs text-slate-200">
+                                    <button onclick="generateUuid()" class="px-3 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl">Neu</button>
+                                    <button onclick="copyToClipboard(document.getElementById('uuidOutput').value)" class="px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl">Kopieren</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">256-Bit Hex Secret (64 Zeichen)</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="hexSecretOutput" readonly class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 font-mono text-xs text-slate-200">
+                                    <button onclick="generateHexSecret()" class="px-3 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl">Neu</button>
+                                    <button onclick="copyToClipboard(document.getElementById('hexSecretOutput').value)" class="px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl">Kopieren</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Base64 Encoded Secret (32 Bytes)</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="base64SecretOutput" readonly class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 font-mono text-xs text-slate-200">
+                                    <button onclick="generateBase64Secret()" class="px-3 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl">Neu</button>
+                                    <button onclick="copyToClipboard(document.getElementById('base64SecretOutput').value)" class="px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl">Kopieren</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: Hashes & Encoding -->
+        <div id="tab-hashes" class="tab-content hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-extrabold text-white">Kryptographische Hashes & Kodierung</h2>
+                    <p class="text-slate-400 text-sm mt-1">Berechne SHA-256, SHA-512, Base64 und Hex direkt in Echtzeit.</p>
+                </div>
+
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Eingabetext / String</label>
+                        <textarea id="hashInput" oninput="updateHashes()" placeholder="Gib hier einen beliebigen Text ein..." class="w-full h-28 bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-sm font-mono text-slate-100 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                            <div class="flex justify-between items-center mb-1.5">
+                                <span class="text-xs font-bold text-white uppercase">SHA-256 Hash</span>
+                                <button onclick="copyToClipboard(document.getElementById('hashSha256').innerText)" class="text-xs text-emerald-400 hover:underline">Kopieren</button>
+                            </div>
+                            <div id="hashSha256" class="font-mono text-xs text-slate-300 break-all select-all min-h-[20px]">-</div>
+                        </div>
+
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                            <div class="flex justify-between items-center mb-1.5">
+                                <span class="text-xs font-bold text-white uppercase">SHA-512 Hash</span>
+                                <button onclick="copyToClipboard(document.getElementById('hashSha512').innerText)" class="text-xs text-emerald-400 hover:underline">Kopieren</button>
+                            </div>
+                            <div id="hashSha512" class="font-mono text-xs text-slate-300 break-all select-all min-h-[20px]">-</div>
+                        </div>
+
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                            <div class="flex justify-between items-center mb-1.5">
+                                <span class="text-xs font-bold text-white uppercase">Base64 Encoded</span>
+                                <button onclick="copyToClipboard(document.getElementById('hashBase64').innerText)" class="text-xs text-emerald-400 hover:underline">Kopieren</button>
+                            </div>
+                            <div id="hashBase64" class="font-mono text-xs text-slate-300 break-all select-all min-h-[20px]">-</div>
+                        </div>
+
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                            <div class="flex justify-between items-center mb-1.5">
+                                <span class="text-xs font-bold text-white uppercase">Hex Representation</span>
+                                <button onclick="copyToClipboard(document.getElementById('hashHex').innerText)" class="text-xs text-emerald-400 hover:underline">Kopieren</button>
+                            </div>
+                            <div id="hashHex" class="font-mono text-xs text-slate-300 break-all select-all min-h-[20px]">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
 
-    <footer class="border-t border-slate-800/80 bg-slate-900/30 py-6 text-center">
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 bg-slate-900/30 py-6 text-center mt-auto">
         <p class="text-xs text-slate-400 flex items-center justify-center space-x-1">
-            <span>❤️ for OpenSource made by</span>
+            <span>❤️ OpenSource & Datenschutz made by</span>
             <a href="https://github.com/offical-atsch16" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:underline font-medium transition">
                 offical-atsch16
             </a>
         </p>
     </footer>
 
+    <!-- Logic Script -->
     <script>
-        let generatedCA = "";
-        let generatedP12 = null;
+        // Global variables for generated key artifacts
+        let generatedSmime = { caPem: '', userPem: '', userKeyPem: '', p12Bytes: null };
+        let generatedSsh = { publicKey: '', privateKey: '' };
+        let generatedPgp = { publicKey: '', privateKey: '' };
 
-        function downloadFile(filename, content, isBinary = false) {
+        // Tab Switcher
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-brand-600', 'text-white', 'shadow-lg', 'shadow-brand-900/40');
+                btn.classList.add('bg-slate-900', 'text-slate-400', 'border-slate-800');
+            });
+
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('tab-btn-' + tabId);
+            activeBtn.classList.remove('bg-slate-900', 'text-slate-400', 'border-slate-800');
+            activeBtn.classList.add('bg-brand-600', 'text-white', 'shadow-lg', 'shadow-brand-900/40');
+        }
+
+        // Copy Helper
+        function copyToClipboard(text) {
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast("In die Zwischenablage kopiert!");
+            }).catch(err => {
+                showToast("Kopieren fehlgeschlagen: " + err);
+            });
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('translate-y-[-100px]', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-[-100px]', 'opacity-0');
+            }, 2500);
+        }
+
+        // Download Helpers
+        function downloadTextFile(filename, content) {
             const element = document.createElement('a');
-            if (isBinary) {
-                const blob = new Blob([content], { type: 'application/x-pkcs12' });
-                element.href = URL.createObjectURL(blob);
-            } else {
-                element.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
-            }
+            element.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
             element.setAttribute('download', filename);
             element.style.display = 'none';
             document.body.appendChild(element);
@@ -137,79 +602,294 @@
             document.body.removeChild(element);
         }
 
-        async function generateCertificates(event) {
+        function downloadBinaryFile(filename, bytes, mimeType) {
+            const blob = new Blob([bytes], { type: mimeType });
+            const element = document.createElement('a');
+            element.href = URL.createObjectURL(blob);
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+        // 1. S/MIME Generation Logic (Node-Forge)
+        async function generateSmimeCertificates(event) {
             event.preventDefault();
-            
-            document.getElementById('status').classList.remove('hidden');
-            document.getElementById('output').classList.add('hidden');
+            document.getElementById('smimeStatus').classList.remove('hidden');
+            document.getElementById('smimeOutput').classList.add('hidden');
 
             setTimeout(() => {
                 try {
-                    const cn = document.getElementById('commonName').value;
-                    const email = document.getElementById('email').value;
-                    const org = document.getElementById('organization').value;
-                    const country = document.getElementById('country').value;
-                    const days = parseInt(document.getElementById('days').value);
-                    const password = document.getElementById('p12password').value;
+                    const cn = document.getElementById('smimeCommonName').value;
+                    const email = document.getElementById('smimeEmail').value;
+                    const org = document.getElementById('smimeOrg').value;
+                    const country = document.getElementById('smimeCountry').value;
+                    const days = parseInt(document.getElementById('smimeDays').value);
+                    const keyBits = parseInt(document.getElementById('smimeKeyBits').value);
+                    const password = document.getElementById('smimePassword').value;
 
-                    // 1. Root CA Keypair & Certificate
-                    const caKeypair = KEYUTIL.generateKeypair("RSA", 2048);
-                    const caCert = new KJUR.asn1.x509.Certificate({
-                        version: 3,
-                        serial: {int: 1},
-                        issuer: {str: `/C=${country}/O=${org} Local CA/CN=${org} Root CA`},
-                        subject: {str: `/C=${country}/O=${org} Local CA/CN=${org} Root CA`},
-                        notbefore: KJUR.asn1.x509.OID.time2date(new Date()),
-                        notafter: KJUR.asn1.x509.OID.time2date(new Date(Date.now() + 10 * 365 * 86400 * 1000)),
-                        ext: [
-                            {extname: "basicConstraints", cA: true, critical: true},
-                            {extname: "keyUsage", critical: true, names: ["keyCertSign", "cRLSign"]}
-                        ],
-                        sigalg: "SHA256withRSA",
-                        cakey: caKeypair.prvKeyObj
-                    });
+                    // A. Generate Root CA Keypair & Certificate
+                    const caKeys = forge.pki.rsa.generateKeyPair(keyBits);
+                    const caCert = forge.pki.createCertificate();
+                    caCert.publicKey = caKeys.publicKey;
+                    caCert.serialNumber = '01' + Math.floor(Math.random() * 100000);
+                    caCert.validity.notBefore = new Date();
+                    caCert.validity.notAfter = new Date();
+                    caCert.validity.notAfter.setFullYear(caCert.validity.notBefore.getFullYear() + 10);
 
-                    generatedCA = caCert.getPEM();
+                    const caAttrs = [
+                        { name: 'countryName', value: country },
+                        { name: 'organizationName', value: org + ' Local CA' },
+                        { name: 'commonName', value: org + ' Root CA' }
+                    ];
+                    caCert.setSubject(caAttrs);
+                    caCert.setIssuer(caAttrs);
+                    caCert.setExtensions([
+                        { name: 'basicConstraints', cA: true, critical: true },
+                        { name: 'keyUsage', keyCertSign: true, cRLSign: true, critical: true }
+                    ]);
+                    caCert.sign(caKeys.privateKey, forge.md.sha256.create());
 
-                    // 2. User S/MIME Keypair & Certificate
-                    const userKeypair = KEYUTIL.generateKeypair("RSA", 2048);
-                    const userCert = new KJUR.asn1.x509.Certificate({
-                        version: 3,
-                        serial: {int: 2},
-                        issuer: {str: `/C=${country}/O=${org} Local CA/CN=${org} Root CA`},
-                        subject: {str: `/C=${country}/O=${org}/CN=${cn}/emailAddress=${email}`},
-                        notbefore: KJUR.asn1.x509.OID.time2date(new Date()),
-                        notafter: KJUR.asn1.x509.OID.time2date(new Date(Date.now() + days * 86400 * 1000)),
-                        ext: [
-                            {extname: "basicConstraints", cA: false},
-                            {extname: "keyUsage", names: ["digitalSignature", "nonRepudiation", "keyEncipherment"]},
-                            {extname: "extKeyUsage", array: ["emailProtection"]},
-                            {extname: "subjectAltName", array: [{rfc822: email}]}
-                        ],
-                        sigalg: "SHA256withRSA",
-                        cakey: caKeypair.prvKeyObj
-                    });
+                    // B. Generate User S/MIME Keypair & Certificate
+                    const userKeys = forge.pki.rsa.generateKeyPair(keyBits);
+                    const userCert = forge.pki.createCertificate();
+                    userCert.publicKey = userKeys.publicKey;
+                    userCert.serialNumber = '02' + Math.floor(Math.random() * 100000);
+                    userCert.validity.notBefore = new Date();
+                    userCert.validity.notAfter = new Date();
+                    userCert.validity.notAfter.setDate(userCert.validity.notBefore.getDate() + days);
 
-                    // 3. Generate PKCS#12 (.p12) Hex & Binary
-                    const p12Hex = jsx509.getPKCS12HexForCertAndKey({
-                        certreq: userCert.getPEM(),
-                        keyreq: KEYUTIL.getPEM(userKeypair.prvKeyObj, "PKCS8PRV"),
-                        pass: password,
-                        caCert: generatedCA
-                    });
+                    const userAttrs = [
+                        { name: 'countryName', value: country },
+                        { name: 'organizationName', value: org },
+                        { name: 'commonName', value: cn },
+                        { name: 'emailAddress', value: email }
+                    ];
+                    userCert.setSubject(userAttrs);
+                    userCert.setIssuer(caAttrs);
+                    userCert.setExtensions([
+                        { name: 'basicConstraints', cA: false },
+                        { name: 'keyUsage', digitalSignature: true, nonRepudiation: true, keyEncipherment: true, dataEncipherment: true },
+                        { name: 'extKeyUsage', emailProtection: true },
+                        { name: 'subjectAltName', altNames: [{ type: 1, value: email }] }
+                    ]);
+                    userCert.sign(caKeys.privateKey, forge.md.sha256.create());
 
-                    const p12Bytes = new Uint8Array(p12Hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-                    generatedP12 = p12Bytes;
+                    // C. Convert to PEMs
+                    generatedSmime.caPem = forge.pki.certificateToPem(caCert);
+                    generatedSmime.userPem = forge.pki.certificateToPem(userCert);
+                    generatedSmime.userKeyPem = forge.pki.privateKeyToPem(userKeys.privateKey);
 
-                    document.getElementById('status').classList.add('hidden');
-                    document.getElementById('output').classList.remove('hidden');
+                    // D. Generate PKCS#12 (.p12) Bytes
+                    const p12Asn1 = forge.pkcs12.toPkcs12Asn1(userKeys.privateKey, [userCert, caCert], password, { generateLocalKeyId: true, friendlyName: 'S/MIME Certificate' });
+                    const p12Der = forge.asn1.toDer(p12Asn1).getBytes();
 
+                    const p12Bytes = new Uint8Array(p12Der.length);
+                    for (let i = 0; i < p12Der.length; i++) {
+                        p12Bytes[i] = p12Der.charCodeAt(i);
+                    }
+                    generatedSmime.p12Bytes = p12Bytes;
+
+                    document.getElementById('smimeStatus').classList.add('hidden');
+                    document.getElementById('smimeOutput').classList.remove('hidden');
                 } catch (err) {
-                    alert("Fehler bei der Zertifikatsgenerierung: " + err.message);
-                    document.getElementById('status').classList.add('hidden');
+                    alert("Fehler bei S/MIME Generierung: " + err.message);
+                    document.getElementById('smimeStatus').classList.add('hidden');
                 }
             }, 100);
         }
+
+        // 2. SSH Key Pair Generation Logic (Fast Web Crypto API + Forge Formatting)
+        async function generateSshKeyPair(event) {
+            event.preventDefault();
+            document.getElementById('sshStatus').classList.remove('hidden');
+            document.getElementById('sshOutput').classList.add('hidden');
+
+            setTimeout(async () => {
+                try {
+                    const keyType = document.getElementById('sshKeyType').value;
+                    const comment = document.getElementById('sshComment').value;
+                    const bits = keyType === 'rsa4096' ? 4096 : 2048;
+
+                    // Generate via fast Web Crypto API
+                    const keyPair = await window.crypto.subtle.generateKey(
+                        {
+                            name: "RSASSA-PKCS1-v1_5",
+                            modulusLength: bits,
+                            publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+                            hash: "SHA-256",
+                        },
+                        true,
+                        ["sign", "verify"]
+                    );
+
+                    const prvBuffer = await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+                    const pubBuffer = await window.crypto.subtle.exportKey("spki", keyPair.publicKey);
+
+                    // Import into Forge for OpenSSH formatting
+                    const prvAsn1 = forge.asn1.fromDer(forge.util.createBuffer(new Uint8Array(prvBuffer)));
+                    const prvKey = forge.pki.privateKeyFromAsn1(prvAsn1);
+
+                    const pubAsn1 = forge.asn1.fromDer(forge.util.createBuffer(new Uint8Array(pubBuffer)));
+                    const pubKey = forge.pki.publicKeyFromAsn1(pubAsn1);
+
+                    generatedSsh.publicKey = forge.ssh.publicKeyToOpenSSH(pubKey, comment);
+                    generatedSsh.privateKey = forge.pki.privateKeyToPem(prvKey);
+
+                    document.getElementById('sshPubKeyArea').value = generatedSsh.publicKey;
+                    document.getElementById('sshPrvKeyArea').value = generatedSsh.privateKey;
+
+                    document.getElementById('sshStatus').classList.add('hidden');
+                    document.getElementById('sshOutput').classList.remove('hidden');
+                } catch (err) {
+                    alert("Fehler bei SSH-Generierung: " + err.message);
+                    document.getElementById('sshStatus').classList.add('hidden');
+                }
+            }, 50);
+        }
+
+        // 3. OpenPGP Key Pair Generation Logic (OpenPGP.js)
+        async function generatePgpKeyPair(event) {
+            event.preventDefault();
+            document.getElementById('pgpStatus').classList.remove('hidden');
+            document.getElementById('pgpOutput').classList.add('hidden');
+
+            try {
+                const name = document.getElementById('pgpName').value;
+                const email = document.getElementById('pgpEmail').value;
+                const keyType = document.getElementById('pgpKeyType').value;
+                const passphrase = document.getElementById('pgpPassphrase').value;
+
+                let opts = {
+                    userIDs: [{ name, email }],
+                    passphrase
+                };
+
+                if (keyType === 'ecc') {
+                    opts.type = 'ecc';
+                    opts.curve = 'ed25519';
+                } else {
+                    opts.type = 'rsa';
+                    opts.rsaBits = keyType === 'rsa4096' ? 4096 : 2048;
+                }
+
+                const key = await openpgp.generateKey(opts);
+                generatedPgp.publicKey = key.publicKey;
+                generatedPgp.privateKey = key.privateKey;
+
+                const parsedKey = await openpgp.readKey({ armoredKey: key.publicKey });
+
+                document.getElementById('pgpFingerprint').innerText = parsedKey.getFingerprint();
+                document.getElementById('pgpKeyId').innerText = parsedKey.getKeyID().toHex();
+                document.getElementById('pgpPubKeyArea').value = generatedPgp.publicKey;
+                document.getElementById('pgpPrvKeyArea').value = generatedPgp.privateKey;
+
+                document.getElementById('pgpStatus').classList.add('hidden');
+                document.getElementById('pgpOutput').classList.remove('hidden');
+            } catch (err) {
+                alert("Fehler bei OpenPGP-Generierung: " + err.message);
+                document.getElementById('pgpStatus').classList.add('hidden');
+            }
+        }
+
+        // 4. Passwords & Secrets Logic
+        function generateSecurePassword() {
+            const length = parseInt(document.getElementById('pwdLength').value);
+            const useUpper = document.getElementById('pwdUpper').checked;
+            const useLower = document.getElementById('pwdLower').checked;
+            const useDigits = document.getElementById('pwdDigits').checked;
+            const useSymbols = document.getElementById('pwdSymbols').checked;
+
+            let chars = '';
+            if (useUpper) chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            if (useLower) chars += 'abcdefghijklmnopqrstuvwxyz';
+            if (useDigits) chars += '0123456789';
+            if (useSymbols) chars += '!@#$%^&*()_+-=[]{}|;:,.<>?';
+
+            if (!chars) {
+                document.getElementById('pwdOutput').value = 'Bitte wähle mind. eine Option';
+                return;
+            }
+
+            const array = new Uint32Array(length);
+            window.crypto.getRandomValues(array);
+            let pwd = '';
+            for (let i = 0; i < length; i++) {
+                pwd += chars[array[i] % chars.length];
+            }
+            document.getElementById('pwdOutput').value = pwd;
+        }
+
+        function generateUuid() {
+            if (window.crypto && window.crypto.randomUUID) {
+                document.getElementById('uuidOutput').value = window.crypto.randomUUID();
+            } else {
+                document.getElementById('uuidOutput').value = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
+        }
+
+        function generateHexSecret() {
+            const bytes = new Uint8Array(32);
+            window.crypto.getRandomValues(bytes);
+            document.getElementById('hexSecretOutput').value = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function generateBase64Secret() {
+            const bytes = new Uint8Array(32);
+            window.crypto.getRandomValues(bytes);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            document.getElementById('base64SecretOutput').value = btoa(binary);
+        }
+
+        // 5. Hash & Encoding Logic
+        async function updateHashes() {
+            const input = document.getElementById('hashInput').value;
+            if (!input) {
+                document.getElementById('hashSha256').innerText = '-';
+                document.getElementById('hashSha512').innerText = '-';
+                document.getElementById('hashBase64').innerText = '-';
+                document.getElementById('hashHex').innerText = '-';
+                return;
+            }
+
+            const encoder = new TextEncoder();
+            const data = encoder.encode(input);
+
+            // SHA-256
+            const hashBuffer256 = await window.crypto.subtle.digest('SHA-256', data);
+            const hashArray256 = Array.from(new Uint8Array(hashBuffer256));
+            document.getElementById('hashSha256').innerText = hashArray256.map(b => b.toString(16).padStart(2, '0')).join('');
+
+            // SHA-512
+            const hashBuffer512 = await window.crypto.subtle.digest('SHA-512', data);
+            const hashArray512 = Array.from(new Uint8Array(hashBuffer512));
+            document.getElementById('hashSha512').innerText = hashArray512.map(b => b.toString(16).padStart(2, '0')).join('');
+
+            // Base64
+            try {
+                document.getElementById('hashBase64').innerText = btoa(unescape(encodeURIComponent(input)));
+            } catch(e) {
+                document.getElementById('hashBase64').innerText = 'Fehler beim Base64 Kodieren';
+            }
+
+            // Hex
+            document.getElementById('hashHex').innerText = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // Init defaults on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            generateSecurePassword();
+            generateUuid();
+            generateHexSecret();
+            generateBase64Secret();
+        });
     </script>
 </body>
 </html>
